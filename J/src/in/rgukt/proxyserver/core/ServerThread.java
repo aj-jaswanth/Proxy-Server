@@ -9,6 +9,14 @@ import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.net.Socket;
 
+/**
+ * This does all the heavy duty work. Each HTTP transaction is managed by a
+ * ServerThread. The thread is alive until it sees Connection: close header or
+ * an explicit TCP connection tear down by the client or server.
+ * 
+ * @author Venkata Jaswanth
+ *
+ */
 public class ServerThread implements Runnable {
 	private Socket clientSocket;
 	private Socket serverSocket;
@@ -25,6 +33,10 @@ public class ServerThread implements Runnable {
 		this.clientSocket = clientSocket;
 	}
 
+	/**
+	 * Waits for the client to send HTTP request. It recieves it and creates a
+	 * HTTPRequest object to represent it.
+	 */
 	private void readHTTPRequest() {
 		try {
 			clientSocketReader = new BufferedReader(new InputStreamReader(
@@ -46,6 +58,9 @@ public class ServerThread implements Runnable {
 		}
 	}
 
+	/**
+	 * Sends the HTTPRequest to the intended server.
+	 */
 	private void sendHTTPRequest() {
 		if (closeConnectionImplicit)
 			return;
@@ -62,6 +77,10 @@ public class ServerThread implements Runnable {
 		}
 	}
 
+	/**
+	 * Receives HTTP response from the server and creates a HTTPResponse object
+	 * to represent it.
+	 */
 	private void readHTTPResponse() {
 		if (closeConnectionImplicit)
 			return;
@@ -71,6 +90,12 @@ public class ServerThread implements Runnable {
 			int first = 0, second = 0;
 			StringBuilder responseLine = new StringBuilder();
 			boolean justReachedLineTerminator = false;
+			/*
+			 * This is a finite automata to process incoming response in bytes.
+			 * It is needed because the line separator in the incoming HTTP
+			 * response can be either '\n' or '\r\n'. This processes headers
+			 * only.
+			 */
 			while (true) {
 				first = serverSocketByteReader.read();
 				second = serverSocketByteReader.read();
@@ -123,6 +148,13 @@ public class ServerThread implements Runnable {
 		}
 	}
 
+	/**
+	 * Sends the received HTTP response to the client.
+	 */
+	/*
+	 * This sends the HTTP status and headers through buffered IO then sends
+	 * body of the response using byte oriented IO.
+	 */
 	private void sendHTTPResponse() {
 		if (closeConnectionImplicit)
 			return;

@@ -2,11 +2,21 @@ package in.rgukt.proxyserver.core;
 
 import java.util.HashMap;
 
+/**
+ * HTTPResponse is used to store incoming HTTP requests from web servers. This
+ * has all the methods to conveniently access individual pieces of a HTTP
+ * response like HTTP version, status code, headers, body of the response.
+ * 
+ * @author Venkata Jaswanth
+ *
+ */
 public final class HTTPResponse {
-	private String initialResponseLine;
 	private String[] initialResponseLineArray = new String[3];
 	private HashMap<String, String> headers = new HashMap<String, String>();
 	private StringBuilder completeHTTPResponse = new StringBuilder();
+	/**
+	 * Store the HTTP response body
+	 */
 	private byte[] body;
 	private boolean firstHeader = true;
 

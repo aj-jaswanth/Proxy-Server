@@ -2,10 +2,24 @@ package in.rgukt.proxyserver.core;
 
 import java.util.HashMap;
 
+/**
+ * HTTPRequest is used to store incoming HTTP requests from web clients like
+ * browsers etc., This has all the methods to conveniently access individual
+ * pieces of a HTTP request like HTTP method, resource, version, headers.
+ * 
+ * @author Venkata Jaswanth
+ *
+ */
 public final class HTTPRequest {
 	private String[] initialRequestLineArray;
 	private String initialRequestLine;
+	/**
+	 * HashTable to store all headers and their values.
+	 */
 	private HashMap<String, String> headers = new HashMap<String, String>();
+	/**
+	 * Stores the complete HTTP request (just for speed)
+	 */
 	private StringBuilder completeHTTPRequest = new StringBuilder();
 
 	public HTTPRequest() {
@@ -55,6 +69,13 @@ public final class HTTPRequest {
 		return completeHTTPRequest.toString();
 	}
 
+	/**
+	 * Add arbitary strings to the complete request. This gets added to the
+	 * completeHTTPRequest data structure. (for flexibility)
+	 * 
+	 * @param request
+	 *            The string to be added
+	 */
 	public final void addToRequest(String request) {
 		completeHTTPRequest.append(request);
 	}

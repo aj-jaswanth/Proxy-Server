@@ -5,6 +5,13 @@ import in.rgukt.proxyserver.core.ServerThread;
 import java.net.ServerSocket;
 import java.net.Socket;
 
+/**
+ * Main program to start the proxy server. It waits until a client is connected.
+ * Then starts a thread to handle the client.
+ * 
+ * @author Venkata Jaswanth
+ *
+ */
 public class Main {
 	public static void main(String[] args) throws Exception {
 		ServerSocket clientServer = new ServerSocket(3128);
