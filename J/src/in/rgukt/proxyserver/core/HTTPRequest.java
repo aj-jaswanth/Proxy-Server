@@ -21,6 +21,7 @@ public final class HTTPRequest {
 	 * Stores the complete HTTP request (just for speed)
 	 */
 	private StringBuilder completeHTTPRequest = new StringBuilder();
+	private boolean firstHeader = true;
 
 	public HTTPRequest() {
 	}
@@ -34,6 +35,11 @@ public final class HTTPRequest {
 	}
 
 	public final void setHeader(String header) {
+		if (firstHeader) {
+			setInitialRequestLine(header);
+			firstHeader = false;
+			return;
+		}
 		int pivot = header.indexOf(':');
 		headers.put(header.substring(0, pivot),
 				header.substring(pivot + 2, header.length()));
