@@ -47,7 +47,7 @@ public class ServerThread implements Runnable {
 				closeConnectionImplicit = true;
 				return;
 			}
-			httpRequest.setInitialRequestLine(initialRequestLine);
+			httpRequest.setHeader(initialRequestLine);
 			String header = null;
 			while ((header = clientSocketReader.readLine()).equals("") == false) {
 				httpRequest.setHeader(header);
@@ -208,7 +208,7 @@ public class ServerThread implements Runnable {
 		// System.out.println("Accepted TCP Connection!");
 		while (closeConnectionImplicit == false && closeConnection() == false) {
 			// System.out.println("HTTP Transaction");
-			readHTTPRequest2();
+			readHTTPRequest();
 			// if (!closeConnectionImplicit)
 			// System.out.print(httpRequest.getCompleteRequest());
 			sendHTTPRequest();

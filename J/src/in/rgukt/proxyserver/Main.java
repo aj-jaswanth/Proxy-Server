@@ -13,14 +13,17 @@ import java.net.Socket;
  *
  */
 public class Main {
+	public static boolean shutdownServer;
+
 	public static void main(String[] args) throws Exception {
 		ServerSocket clientServer = new ServerSocket(3128);
-		while (true) {
+		while (shutdownServer == false) {
 			Socket socket = clientServer.accept();
 			Thread serverThread = new Thread(new ServerThread(socket));
 			serverThread.start();
 			System.out.println(serverThread.getName());
 			// serverThread.join();
 		}
+		clientServer.close();
 	}
 }
