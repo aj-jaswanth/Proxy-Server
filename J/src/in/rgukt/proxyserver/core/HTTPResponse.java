@@ -1,5 +1,6 @@
 package in.rgukt.proxyserver.core;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 
 /**
@@ -18,6 +19,9 @@ public final class HTTPResponse {
 	 * Store the HTTP response body
 	 */
 	private byte[] body;
+
+	// TODO: Avoid using ArrayList. Develop a custom expandable data structure.
+	ArrayList<Byte> chunkedBody = new ArrayList<Byte>();
 	private boolean firstHeader = true;
 
 	public HTTPResponse() {
@@ -38,6 +42,7 @@ public final class HTTPResponse {
 
 	public void setHeader(String header) {
 		completeHTTPResponse.append(header);
+		header = header.replaceAll("[\\r\\n]", "");
 		if (firstHeader) {
 			setInitialResponseLine(header);
 			firstHeader = false;
@@ -62,6 +67,10 @@ public final class HTTPResponse {
 
 	public String getHeader(String key) {
 		return headers.get(key);
+	}
+
+	public boolean hasHeader(String key) {
+		return headers.containsKey(key);
 	}
 
 	public String getHTTPVersion() {

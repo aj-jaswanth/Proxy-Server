@@ -22,7 +22,6 @@ public class Main {
 			Thread serverThread = new Thread(new ServerThread(socket));
 			serverThread.start();
 			System.out.println(serverThread.getName());
-			// serverThread.join();
 		}
 		clientServer.close();
 	}

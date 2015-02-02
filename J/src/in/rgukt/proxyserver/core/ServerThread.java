@@ -27,10 +27,11 @@ public class ServerThread implements Runnable {
 	private OutputStream clientSocketByteWriter;
 	private HTTPRequest httpRequest;
 	private HTTPResponse httpResponse;
-	private boolean closeConnectionImplicit;
+	private boolean closeConnection;
 
 	public ServerThread(Socket clientSocket) {
 		this.clientSocket = clientSocket;
+		serverSocket = new Socket();
 	}
 
 	/**
@@ -44,7 +45,7 @@ public class ServerThread implements Runnable {
 			httpRequest = new HTTPRequest();
 			String initialRequestLine = clientSocketReader.readLine();
 			if (initialRequestLine == null) {
-				closeConnectionImplicit = true;
+				closeConnection = true;
 				return;
 			}
 			httpRequest.setHeader(initialRequestLine);
@@ -52,25 +53,10 @@ public class ServerThread implements Runnable {
 			while ((header = clientSocketReader.readLine()).equals("") == false) {
 				httpRequest.setHeader(header);
 			}
-			httpRequest.addToRequest("\n");
+			httpRequest.addToRequest("\r\n");
 		} catch (IOException e) {
 			e.printStackTrace();
-		}
-	}
-
-	private void readHTTPRequest2() {
-		try {
-			httpRequest = new HTTPRequest();
-			HTTPRequestAutomata requestProcessor = new HTTPRequestAutomata(
-					clientSocket.getInputStream());
-			String header = null;
-			while ((header = requestProcessor.nextString()).equals("") == false)
-				httpRequest.setHeader(header);
-			httpRequest.addToRequest("\n");
-			if (httpRequest.getCompleteRequest().equals("\n"))
-				closeConnectionImplicit = true;
-		} catch (IOException e) {
-			e.printStackTrace();
+			closeConnection = true;
 		}
 	}
 
@@ -78,12 +64,12 @@ public class ServerThread implements Runnable {
 	 * Sends the HTTPRequest to the intended server.
 	 */
 	private void sendHTTPRequest() {
-		if (closeConnectionImplicit)
+		if (closeConnection)
 			return;
-		serverSocket = new Socket();
 		try {
-			serverSocket.connect(HTTPUtils.getSocketAddress(httpRequest
-					.getHeader("Host")));
+			if (serverSocket.isConnected() == false)
+				serverSocket.connect(HTTPUtils.getSocketAddress(httpRequest
+						.getHeader("Host")));
 			serverSocketWriter = new BufferedWriter(new OutputStreamWriter(
 					serverSocket.getOutputStream()));
 			serverSocketWriter.write(httpRequest.getCompleteRequest());
@@ -98,74 +84,97 @@ public class ServerThread implements Runnable {
 	 * to represent it.
 	 */
 	private void readHTTPResponse() {
-		if (closeConnectionImplicit)
+		if (closeConnection)
 			return;
 		try {
-			serverSocketByteReader = serverSocket.getInputStream();
 			httpResponse = new HTTPResponse();
-			int first = 0, second = 0;
+			serverSocketByteReader = serverSocket.getInputStream();
 			StringBuilder responseLine = new StringBuilder();
-			boolean justReachedLineTerminator = false;
-			/*
-			 * This is a finite automata to process incoming response in bytes.
-			 * It is needed because the line separator in the incoming HTTP
-			 * response can be either '\n' or '\r\n'. This processes headers
-			 * only.
-			 */
+			int data = 0;
+			// int count = 0;
 			while (true) {
-				first = serverSocketByteReader.read();
-				second = serverSocketByteReader.read();
-				if (first == '\n' && second != '\n') {
-					if (justReachedLineTerminator == true) {
+				data = serverSocketByteReader.read();
+				responseLine.append((char) data);
+				// DEBUG: System.out.print((char) data);
+				if (data == '\n') {
+					String header = responseLine.toString();
+					if (header.equals("\r\n")) {
+						httpResponse.addToResponse("\r\n");
+						break;
+					} else if (header.equals("\n")) {
 						httpResponse.addToResponse("\n");
 						break;
 					}
-					justReachedLineTerminator = true;
-					httpResponse.setHeader(responseLine.toString());
+					httpResponse.setHeader(header);
 					responseLine = new StringBuilder();
-					responseLine.append((char) second);
-				} else if ((first != '\r' && first != '\n') && second == '\n') {
-					if (justReachedLineTerminator == true) {
-						break;
-					}
-					justReachedLineTerminator = true;
-					responseLine.append((char) first);
-					httpResponse.setHeader(responseLine.toString());
-					responseLine = new StringBuilder();
-				} else if (first == '\r' && second == '\n') {
-					if (justReachedLineTerminator == true) {
-						break;
-					}
-					justReachedLineTerminator = true;
-					httpResponse.setHeader(responseLine.toString());
-					responseLine = new StringBuilder();
-				} else if (second == '\r') {
-					if (justReachedLineTerminator == true) {
-						break;
-					}
-					justReachedLineTerminator = true;
-					responseLine.append((char) first);
-					httpResponse.setHeader(responseLine.toString());
-					responseLine = new StringBuilder();
-					first = serverSocketByteReader.read();
-					assert (first == '\n') : "\\n is missing in \\r\\n";
-				} else {
-					justReachedLineTerminator = false;
-					responseLine.append((char) first);
-					responseLine.append((char) second);
 				}
-				if (justReachedLineTerminator)
-					httpResponse.addToResponse("\n");
+				// TODO: DEBUG
+				/*
+				 * count++; if (count > 1200) System.exit(0);
+				 */
 			}
-			// System.out.println(httpRequest.getCompleteRequest());
-			int bodyLength = Integer.parseInt(httpResponse
-					.getHeader("Content-Length"));
-			byte[] body = new byte[bodyLength];
-			serverSocketByteReader.read(body, 0, bodyLength);
-			httpResponse.setBody(body);
+			int bodyLength = -1;
+			if (httpResponse.hasHeader("Content-Length")) {
+				bodyLength = Integer.parseInt(httpResponse
+						.getHeader("Content-Length"));
+				byte[] body = new byte[bodyLength];
+				int dataRead = serverSocketByteReader.read(body, 0, bodyLength);
+				while (dataRead < bodyLength)
+					dataRead += serverSocketByteReader.read(body, dataRead,
+							bodyLength - dataRead);
+				httpResponse.setBody(body);
+			} else if (httpResponse.hasHeader("Transfer-Encoding")) {
+				while ((bodyLength = getBodyLength(serverSocketByteReader)) != 0) {
+					while (bodyLength-- > -2) {
+						data = serverSocketByteReader.read();
+						httpResponse.chunkedBody.add((byte) data);
+					}
+				}
+				data = serverSocketByteReader.read();
+				httpResponse.chunkedBody.add((byte) data);
+				if (data == '\r')
+					httpResponse.chunkedBody.add((byte) serverSocketByteReader
+							.read());
+			} else {
+				System.err.println("Error : "
+						+ httpRequest.getInitialRequestLine());
+				System.err.println(httpResponse.getCompletHTTPResponse() + "A");
+				closeConnection = true;
+				System.exit(0);
+				return;
+			}
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
+	}
+
+	private int getBodyLength(InputStream serverSocketByteReader)
+			throws IOException {
+		int data = 0;
+		StringBuilder length = new StringBuilder();
+		while (true) {
+			data = serverSocketByteReader.read();
+			httpResponse.chunkedBody.add((byte) data);
+			if (data == ';')
+				break;
+			else if (data == '\r') {
+				data = serverSocketByteReader.read();
+				httpResponse.chunkedBody.add((byte) data);
+				break;
+			} else if (data == '\n')
+				break;
+			length.append((char) data);
+		}
+		if (data == ';') {
+			while (true) {
+				data = serverSocketByteReader.read();
+				httpResponse.chunkedBody.add((byte) data);
+				if (data == '\n')
+					break;
+			}
+		}
+		String str = length.toString();
+		return Integer.parseInt(str, 16);
 	}
 
 	/**
@@ -176,26 +185,30 @@ public class ServerThread implements Runnable {
 	 * body of the response using byte oriented IO.
 	 */
 	private void sendHTTPResponse() {
-		if (closeConnectionImplicit)
+		if (closeConnection)
 			return;
 		try {
 			clientSocketWriter = new BufferedWriter(new OutputStreamWriter(
 					clientSocket.getOutputStream()));
 			clientSocketWriter.write(httpResponse.getCompletHTTPResponse());
-			clientSocketWriter.write('\n');
 			clientSocketWriter.flush();
 			clientSocketByteWriter = clientSocket.getOutputStream();
-			clientSocketByteWriter.write(httpResponse.getBody(), 0,
-					Integer.parseInt(httpResponse.getHeader("Content-Length")));
+			if (httpResponse.hasHeader("Content-Length")) {
+				clientSocketByteWriter.write(httpResponse.getBody(), 0, Integer
+						.parseInt(httpResponse.getHeader("Content-Length")));
+			} else {
+				for (Object data : httpResponse.chunkedBody.toArray())
+					clientSocketByteWriter.write((byte) data);
+			}
 			clientSocketByteWriter.flush();
+			if (closeConnectionClient() || closeConnectionServer())
+				closeConnection = true;
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
 	}
 
-	private boolean closeConnection() {
-		if (httpRequest == null)
-			return false;
+	private boolean closeConnectionClient() {
 		if (httpRequest.hasHeader("Connection") == false)
 			return true;
 		else if (httpRequest.getHeader("Connection").equals("close"))
@@ -203,21 +216,24 @@ public class ServerThread implements Runnable {
 		return false;
 	}
 
+	private boolean closeConnectionServer() {
+		if (httpResponse.hasHeader("Connection") == false)
+			return true;
+		else if (httpResponse.getHeader("Connection").equals("close"))
+			return true;
+		return false;
+	}
+
 	@Override
 	public void run() {
-		// System.out.println("Accepted TCP Connection!");
-		while (closeConnectionImplicit == false && closeConnection() == false) {
-			// System.out.println("HTTP Transaction");
+		while (closeConnection == false) {
 			readHTTPRequest();
-			// if (!closeConnectionImplicit)
-			// System.out.print(httpRequest.getCompleteRequest());
 			sendHTTPRequest();
 			readHTTPResponse();
-			// if (!closeConnectionImplicit)
-			// System.out.print(httpResponse.getCompletHTTPResponse());
 			sendHTTPResponse();
 		}
 		try {
+			System.out.println("Closing Connection!");
 			clientSocket.close();
 			serverSocket.close();
 			return;
