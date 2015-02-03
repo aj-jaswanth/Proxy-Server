@@ -1,10 +1,8 @@
 package in.rgukt.proxyserver.core;
 
-import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.net.Socket;
@@ -20,11 +18,12 @@ import java.net.Socket;
 public class ServerThread implements Runnable {
 	private Socket clientSocket;
 	private Socket serverSocket;
-	private BufferedReader clientSocketReader;
 	private BufferedWriter clientSocketWriter;
 	private BufferedWriter serverSocketWriter;
 	private InputStream serverSocketByteReader;
+	private InputStream clientSocketByteReader;
 	private OutputStream clientSocketByteWriter;
+	private OutputStream serverSocketByteWriter;
 	private HTTPRequest httpRequest;
 	private HTTPResponse httpResponse;
 	private boolean closeConnection;
@@ -40,20 +39,37 @@ public class ServerThread implements Runnable {
 	 */
 	private void readHTTPRequest() {
 		try {
-			clientSocketReader = new BufferedReader(new InputStreamReader(
-					clientSocket.getInputStream()));
+			clientSocketByteReader = clientSocket.getInputStream();
 			httpRequest = new HTTPRequest();
-			String initialRequestLine = clientSocketReader.readLine();
-			if (initialRequestLine == null) {
-				closeConnection = true;
-				return;
+			StringBuilder responseLine = new StringBuilder();
+			int data = 0;
+			while (true) {
+				data = serverSocketByteReader.read();
+				responseLine.append((char) data);
+				if (data == '\n') {
+					String header = responseLine.toString();
+					if (header.equals("\r\n")) {
+						httpRequest.addToRequest("\r\n");
+						break;
+					} else if (header.equals("\n")) {
+						httpRequest.addToRequest("\n");
+						break;
+					}
+					httpRequest.setHeader(header);
+					responseLine = new StringBuilder();
+				}
 			}
-			httpRequest.setHeader(initialRequestLine);
-			String header = null;
-			while ((header = clientSocketReader.readLine()).equals("") == false) {
-				httpRequest.setHeader(header);
+			// If this is a POST request
+			if (httpRequest.hasHeader("Content-Length")) {
+				int bodyLength = Integer.parseInt(httpRequest
+						.getHeader("Content-Length"));
+				byte[] body = new byte[bodyLength];
+				int readData = clientSocketByteReader.read(body, 0, bodyLength);
+				while (readData < bodyLength)
+					readData += clientSocketByteReader.read(body, readData,
+							bodyLength - readData);
+				httpRequest.body = body;
 			}
-			httpRequest.addToRequest("\r\n");
 		} catch (IOException e) {
 			e.printStackTrace();
 			closeConnection = true;
@@ -74,6 +90,10 @@ public class ServerThread implements Runnable {
 					serverSocket.getOutputStream()));
 			serverSocketWriter.write(httpRequest.getCompleteRequest());
 			serverSocketWriter.flush();
+			if (httpRequest.hasHeader("Content-Length")) {
+				serverSocketByteWriter.write(httpRequest.body, 0,
+						httpRequest.body.length);
+			}
 		} catch (IOException e) {
 			e.printStackTrace();
 		}

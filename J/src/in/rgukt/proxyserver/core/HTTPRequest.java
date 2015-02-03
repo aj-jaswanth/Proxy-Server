@@ -22,6 +22,7 @@ public final class HTTPRequest {
 	 */
 	private StringBuilder completeHTTPRequest = new StringBuilder();
 	private boolean firstHeader = true;
+	byte[] body;
 
 	public HTTPRequest() {
 	}
@@ -35,6 +36,7 @@ public final class HTTPRequest {
 	}
 
 	public final void setHeader(String header) {
+		header = header.replaceAll("[\\r\\n]", "");
 		if (firstHeader) {
 			setInitialRequestLine(header);
 			firstHeader = false;
