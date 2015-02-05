@@ -22,7 +22,7 @@ public final class HTTPRequest {
 	 */
 	private StringBuilder completeHTTPRequest = new StringBuilder();
 	private boolean firstHeader = true;
-	byte[] body;
+	byte[] body = new byte[1];
 
 	public HTTPRequest() {
 	}

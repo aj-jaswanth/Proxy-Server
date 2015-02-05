@@ -44,7 +44,13 @@ public class ServerThread implements Runnable {
 			StringBuilder responseLine = new StringBuilder();
 			int data = 0;
 			while (true) {
-				data = serverSocketByteReader.read();
+				data = clientSocketByteReader.read();
+				// If Connection : keep-alive is set and still doesn't get any
+				// request
+				if (data == -1) {
+					closeConnection = true;
+					return;
+				}
 				responseLine.append((char) data);
 				if (data == '\n') {
 					String header = responseLine.toString();
@@ -84,13 +90,13 @@ public class ServerThread implements Runnable {
 			return;
 		try {
 			if (serverSocket.isConnected() == false)
-				serverSocket.connect(HTTPUtils.getSocketAddress(httpRequest
-						.getHeader("Host")));
+				serverSocket.connect(HTTPUtils.getSocketAddress("10.20.3.2:3128"));
 			serverSocketWriter = new BufferedWriter(new OutputStreamWriter(
 					serverSocket.getOutputStream()));
 			serverSocketWriter.write(httpRequest.getCompleteRequest());
 			serverSocketWriter.flush();
 			if (httpRequest.hasHeader("Content-Length")) {
+				serverSocketByteWriter = serverSocket.getOutputStream();
 				serverSocketByteWriter.write(httpRequest.body, 0,
 						httpRequest.body.length);
 			}
@@ -158,10 +164,7 @@ public class ServerThread implements Runnable {
 			} else {
 				System.err.println("Error : "
 						+ httpRequest.getInitialRequestLine());
-				System.err.println(httpResponse.getCompletHTTPResponse() + "A");
-				closeConnection = true;
-				System.exit(0);
-				return;
+				System.err.println(httpResponse.getCompletHTTPResponse());
 			}
 		} catch (IOException e) {
 			e.printStackTrace();
@@ -251,9 +254,10 @@ public class ServerThread implements Runnable {
 			sendHTTPRequest();
 			readHTTPResponse();
 			sendHTTPResponse();
+			break;
 		}
 		try {
-			System.out.println("Closing Connection!");
+			// System.out.println("Closing Connection!");
 			clientSocket.close();
 			serverSocket.close();
 			return;
