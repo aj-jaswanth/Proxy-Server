@@ -37,6 +37,7 @@ public class ServerThread implements Runnable {
 	 * Waits for the client to send HTTP request. It receives it and creates a
 	 * HTTPRequest object to represent it.
 	 */
+	@SuppressWarnings("unused")
 	private void readHTTPRequest() {
 		try {
 			clientSocketByteReader = clientSocket.getInputStream();
